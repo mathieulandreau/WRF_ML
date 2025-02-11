@@ -12,7 +12,7 @@ SUBROUTINE solve_em ( grid , config_flags  &
                  ,domain_get_current_time, domain_get_start_time                           &
                  ,domain_get_sim_start_time, domain_clock_get,is_alarm_tstep
    USE module_domain_type, ONLY : history_alarm, restart_alarm, auxinput4_alarm            &
-                 ,boundary_alarm
+                 ,boundary_alarm, auxhist24_alarm
    USE module_configure, ONLY : grid_config_rec_type
    USE module_driver_constants
    USE module_machine
@@ -77,6 +77,7 @@ SUBROUTINE solve_em ( grid , config_flags  &
    USE module_after_all_rk_steps
    USE module_llxy, ONLY : proj_cassini
    USE module_avgflx_em, ONLY : zero_avgflx, upd_avgflx
+   USE module_statistics, ONLY : zero_statistics
    USE module_cpl, ONLY : coupler_on, cpl_settime, cpl_store_input
 
 #if (WRF_CMAQ == 1)
@@ -208,6 +209,7 @@ SUBROUTINE solve_em ( grid , config_flags  &
    INTEGER, PARAMETER                         :: precision = 100
    INTEGER                                    :: num, den
    TYPE(WRFU_TimeInterval)                    :: dtInterval, intervaltime,restartinterval
+   TYPE(domain), POINTER                      :: parent
 
 #if (WRF_CMAQ == 1)
    interface
@@ -4741,6 +4743,55 @@ BENCH_END(bc_2d_tim)
 
    END DO
    !$OMP END PARALLEL DO
+
+   ! initialize statistics
+   IF (config_flags%output_stats > 0) THEN
+    ! Reinitialize statistics if history output was written after the previous time step:
+          CALL WRFU_ALARMGET(grid%alarms( AUXHIST24_ALARM ),prevringtime=temp_time, RingInterval=intervaltime)
+          CALL domain_clock_get ( grid, current_time=CurrTime, &
+               current_timestr=message2 )
+    ! use overloaded -, .LT. operator to check whether to initialize statistics:
+    ! reinitialize after each auxhist24 output (detect this here by comparing current time
+    ! against last history time and time step):
+          WRITE ( message , FMT = '("solve_em: old_dt =",g15.6,", dt=",g15.6," on domain ",I3)' ) &
+               & old_dt,grid%dt,grid%id
+          CALL wrf_debug(200,message)
+          ! get time step as fraction
+          IF (config_flags%use_adaptive_time_step) THEN
+             old_dt=min(old_dt,grid%dt)
+             num = INT(old_dt * precision)
+             den = precision
+             CALL WRFU_TimeIntervalSet(dtInterval, Sn=num, Sd=den)
+          ELSE
+             den = config_flags%time_step_fract_den
+             num = den*config_flags%time_step + config_flags%time_step_fract_num
+             den = den * grid%parent_grid_ratio
+             parent => grid
+             DO WHILE (parent%id .GT. 1 )
+                parent => parent%parents(1)%ptr
+                den = den * parent%parent_grid_ratio
+             END DO
+             CALL WRFU_TimeIntervalSet(dtInterval, Sn=num, Sd=den)
+          ENDIF
+          IF (CurrTime .lt. temp_time + dtInterval) THEN
+             WRITE ( message , FMT = '("solve_em: initializing statistics at time ",A," on domain ",I3)' ) &
+                  & TRIM(message2), grid%id
+             CALL wrf_message(trim(message)) 
+             grid%stats_count = 0
+             !tile-loop for zero_statistics
+             !$OMP PARALLEL DO   &
+             !$OMP PRIVATE ( ij )
+             DO ij = 1 , grid%num_tiles
+                CALL wrf_debug(200,'In solve_em, before zero_statistics call')
+                CALL zero_statistics(grid, grid%output_stats,        &
+                     &   grid%i_start(ij), grid%i_end(ij), grid%j_start(ij), grid%j_end(ij), k_start    , k_end)
+                CALL wrf_debug(200,'In solve_em, after zero_statistics call')
+             ENDDO
+             !$OMP END PARALLEL DO
+          ENDIF
+          ! increase count
+          grid%stats_count = grid%stats_count + 1
+       ENDIF
 
 !-----------------------------------------------------------
 !  After all of the RK steps, after the microphysics, after p-rho-phi,

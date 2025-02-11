@@ -51,6 +51,7 @@
 
    USE module_model_constants
    USE module_avgflx_em, ONLY : zero_avgflx
+   USE module_statistics, ONLY : zero_statistics
 
    IMPLICIT NONE
    !  Input data.
@@ -94,7 +95,7 @@
    REAL :: pfu, pfd, phm
    REAL :: MPDT
    REAL :: spongeweight
-   LOGICAL :: first_trip_for_this_domain, start_of_simulation, fill_w_flag
+   LOGICAL :: first_trip_for_this_domain, start_of_simulation, fill_w_flag, call_zero_statistics
    LOGICAL, EXTERNAL :: wrf_dm_on_monitor
 
 #if (WRF_CHEM != 1)
@@ -230,8 +231,10 @@
 
    IF ( grid%itimestep .EQ. 0 ) THEN
       first_trip_for_this_domain = .TRUE.
+      call_zero_statistics = .TRUE.
    ELSE
       first_trip_for_this_domain = .FALSE.
+      call_zero_statistics = .FALSE.
    END IF
 
    IF ( .not. ( config_flags%restart .or. grid%moved ) ) THEN
@@ -1315,6 +1318,19 @@ endif
       ENDDO
    ENDIF
 
+   IF ((call_zero_statistics) .and. (config_flags%output_stats > 0)) THEN
+      WRITE ( message , FMT = '("start_em: initializing statistics on domain ",I3)' ) &
+           & grid%id
+      CALL wrf_message(trim(message))
+      grid%stats_count = 0
+      DO ij = 1, grid%num_tiles
+         CALL wrf_debug(200,'In start_em, before zero_statistics call')
+         CALL zero_statistics(grid, grid%output_stats,        &
+              &   grid%i_start(ij), grid%i_end(ij), grid%j_start(ij), grid%j_end(ij), kts, kte)
+         CALL wrf_debug(200,'In start_em, after zero_statistics call')
+      ENDDO
+   ENDIF
+   
    call wrf_debug(100,'start_em: calling lightning_init')
    CALL lightning_init ( id=grid%id, itimestep=grid%itimestep, restart=grid%restart, dt=grid%dt, dx=grid%dx   &
                     ! Namelist control options

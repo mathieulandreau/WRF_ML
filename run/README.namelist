@@ -1912,6 +1912,8 @@ is "h1", so that stream needs to be explicitly requested in the namelist.input f
 
  &diags
  diag_nwp2 = 1
+ output_stats (max_dom)             = 0        ! Output statistics (0:no, 1:average, 2:2nd order, 3:3rd order)
+ avg_interval (max_dom)             = -1       ! Averaging interval in minutes. If -1, use the output interval of auxhist24.
  /
 
  &time_control
