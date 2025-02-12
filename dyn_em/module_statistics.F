@@ -230,7 +230,7 @@ CONTAINS
 #endif
         pb = grid%pb(i,k,j)
         t = (pt+T0) * (p0/(p+pb))**(-rcp)
-        tv = t * (1.+R_v/R_d*qv)
+        tv = (ptv+T0) * (p0/(p+pb))**(-rcp)
         rhod = (p+pb)/(R_d*tv)
         rhov = rhod*qv
         rho = rhod*(1.+q)
