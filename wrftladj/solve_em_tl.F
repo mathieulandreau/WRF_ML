@@ -3382,6 +3382,7 @@ BENCH_END(g_bc_end_tim)
         ENDIF
       ENDIF
 
+      IF (config_flags%do_avgflx_em .EQ. 1) THEN
 ! Update avgflx quantities
 !tile-loop for upd_avgflx
    !$OMP PARALLEL DO   &
@@ -3403,6 +3404,10 @@ BENCH_END(g_bc_end_tim)
 
       ENDDO
       grid%avgflx_count = grid%avgflx_count + 1
+      ENDIF
+      IF (config_flags%output_stats > 0) THEN
+        grid%stats_count = grid%stats_count + 1
+      ENDIF
    ENDIF
 !
    !$OMP PARALLEL DO   &

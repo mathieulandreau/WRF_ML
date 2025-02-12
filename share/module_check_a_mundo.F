@@ -3248,6 +3248,7 @@
 
       INTEGER :: numsoiltemp , nummosaictemp
       INTEGER :: i
+      INTEGER :: output_interval
 
 
 !-----------------------------------------------------------------------
@@ -3580,6 +3581,26 @@
       WRITE (wrf_err_message, FMT='(A,I6)') '--- NOTE: num_soil_layers has been set to ', &
                                              model_config_rec % num_soil_layers
       CALL wrf_debug ( 1, wrf_err_message )
+
+      !Check output_interval for WRFstats
+      DO i = 1, model_config_rec % max_dom
+         IF (model_config_rec%output_stats(i) > 0) THEN
+            !averaging time must be smaller or equal output interval
+            output_interval = model_config_rec%auxhist24_interval  (i)*   60 + &
+                              model_config_rec%auxhist24_interval_d(i)*86400 + &
+                              model_config_rec%auxhist24_interval_h(i)* 3600 + &
+                              model_config_rec%auxhist24_interval_m(i)*   60 + &
+                              model_config_rec%auxhist24_interval_s(i)
+            IF (model_config_rec%avg_interval(i) .gt. output_interval) THEN
+               WRITE (wrf_err_message, fmt='(a,F8.1,a,I7,a)') '--- ERROR: Stats averaging time (avg_interval=', model_config_rec%avg_interval(i), &
+                                          's) must be smaller or equal the output interval of auxhist24 (=', output_interval, 's)!'
+               CALL wrf_error_fatal ( TRIM(wrf_err_message) )
+            ENDIF
+            IF (model_config_rec%use_adaptive_time_step) THEN
+               CALL wrf_error_fatal ('Adaptive timestepping is not yet possible with WRFstats!' )
+            ENDIF
+         ENDIF
+      ENDDO
 
    END SUBROUTINE set_physics_rconfigs
 
