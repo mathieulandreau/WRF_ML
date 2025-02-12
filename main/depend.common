@@ -2117,7 +2117,7 @@ mediation_integrate.o: \
 	module_date_time.o \
 	module_bc_time_utilities.o \
 	module_compute_geop.o \
-	../dyn_em/module_statistics.o \  
+	../dyn_em/module_statistics.o \
 	$(PERTMOD) \
 	module_io_domain.o 
 
